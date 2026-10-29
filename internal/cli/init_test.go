@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/tracexpro/tracex-cli/internal/config"
+	"github.com/shashank026/tracex-cli/internal/config"
 )
 
 func gitRepo(t *testing.T, remote string) string {

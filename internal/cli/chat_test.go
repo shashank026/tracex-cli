@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tracexpro/tracex-cli/internal/api"
-	"github.com/tracexpro/tracex-cli/internal/config"
+	"github.com/shashank026/tracex-cli/internal/api"
+	"github.com/shashank026/tracex-cli/internal/config"
 )
 
 // A TraceX server that answers one question the way /v1/chats streams it.

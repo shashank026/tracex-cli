@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tracexpro/tracex-cli/internal/api"
-	"github.com/tracexpro/tracex-cli/internal/config"
-	"github.com/tracexpro/tracex-cli/internal/ui"
+	"github.com/shashank026/tracex-cli/internal/api"
+	"github.com/shashank026/tracex-cli/internal/config"
+	"github.com/shashank026/tracex-cli/internal/ui"
 )
 
 // login signs the CLI in through the browser: TraceX shows a code, the person

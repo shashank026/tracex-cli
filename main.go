@@ -5,7 +5,7 @@ package main
 import (
 	"os"
 
-	"github.com/tracexpro/tracex-cli/internal/cli"
+	"github.com/shashank026/tracex-cli/internal/cli"
 )
 
 // Set at build time: -ldflags "-X main.version=v0.1.0 -X main.commit=abc123"

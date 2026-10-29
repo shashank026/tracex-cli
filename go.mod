@@ -1,4 +1,4 @@
-module github.com/tracexpro/tracex-cli
+module github.com/shashank026/tracex-cli
 
 go 1.27.3
 

@@ -9,7 +9,7 @@
 #   TRACEX_RELEASES      where releases are downloaded from
 set -eu
 
-RELEASES="${TRACEX_RELEASES:-https://github.com/tracexpro/tracex-cli/releases}"
+RELEASES="${TRACEX_RELEASES:-https://github.com/shashank026/tracex-cli/releases}"
 VERSION="${TRACEX_VERSION:-latest}"
 INSTALL_DIR="${TRACEX_INSTALL_DIR:-$HOME/.local/bin}"
 

@@ -7,10 +7,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/tracexpro/tracex-cli/internal/api"
-	"github.com/tracexpro/tracex-cli/internal/config"
-	"github.com/tracexpro/tracex-cli/internal/gitrepo"
-	"github.com/tracexpro/tracex-cli/internal/ui"
+	"github.com/shashank026/tracex-cli/internal/api"
+	"github.com/shashank026/tracex-cli/internal/config"
+	"github.com/shashank026/tracex-cli/internal/gitrepo"
+	"github.com/shashank026/tracex-cli/internal/ui"
 )
 
 // initRepo links the git repository in this folder to a TraceX project: it
