@@ -34,6 +34,15 @@ In a chat session:
 | ctrl+c | Stops an answer. |
 | `\` at the end of a line | Continues the question on the next line. |
 
+## Coding mode
+
+In a git repository that isn't linked to TraceX (no `.tracex.json`), `tracex -c` works like a coding agent: it lists, searches and reads the code, edits files and runs commands (tests, builds, git) to do what you ask.
+
+- Every edit is shown as a diff and every command before it runs; answer `y` (yes), `a` (always, for this session) or `n` (no). Without a terminal, edits and commands are refused.
+- Files outside the repository can't be read or written, symlinks included.
+- The model runs through TraceX's API, so no AI keys are needed on your machine and usage counts against your plan. Nothing of the conversation is stored by TraceX.
+- `tracex -c --code` works on the code even in a linked repository; `tracex -c --ask` asks TraceX about your project instead.
+
 ## Where things are kept
 
 - **`~/.tracex/credentials.json`** (mode 0600): the CLI's session. It lasts 30 days and is listed under Profile → Sessions in the dashboard, where you can revoke it.

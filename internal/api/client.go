@@ -126,7 +126,16 @@ func detail(resp *http.Response) string {
 
 // JSON sends body (if any) and decodes the response into out (if any).
 func (c *Client) JSON(ctx context.Context, method, path string, body, out any) error {
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	return c.jsonWithin(ctx, 60*time.Second, method, path, body, out)
+}
+
+// LongJSON is JSON for calls that wait on a model (minutes, not seconds).
+func (c *Client) LongJSON(ctx context.Context, method, path string, body, out any) error {
+	return c.jsonWithin(ctx, 10*time.Minute, method, path, body, out)
+}
+
+func (c *Client) jsonWithin(ctx context.Context, limit time.Duration, method, path string, body, out any) error {
+	ctx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
 	req, err := c.newRequest(ctx, method, path, body)
 	if err != nil {

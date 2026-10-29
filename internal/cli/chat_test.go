@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/shashank026/tracex-cli/internal/api"
 	"github.com/shashank026/tracex-cli/internal/config"
 )
 
@@ -63,25 +62,14 @@ func TestOneQuestionPrintsTheFinalAnswer(t *testing.T) {
 	}
 }
 
-func TestTheTraceShowsHeadlinesAndActionsNotReasoning(t *testing.T) {
-	ok, failed := true, false
-	trace := &traceLog{seen: map[string]bool{}}
-	plan := trace.add(api.Step{Tool: "plan", Thought: "We need to... Let's list the tables."})
-	first := trace.add(api.Step{Tool: "list_tables", Done: "Listed the tables", Thought: "We need to find signups. Let's", OK: &ok})
-	again := trace.add(api.Step{Tool: "list_tables", Done: "Listed the tables", OK: &ok})
-	code := trace.add(api.Step{Tool: "read_file", Done: "Read src/auth/auth.service.ts", OK: &ok})
-	broken := trace.add(api.Step{Tool: "list_files", Done: "Looked at the files in src/x", OK: &failed})
-	if plan != "" || again != "" {
-		t.Fatalf("plan %q and a repeat %q should print nothing", plan, again)
-	}
-	if first != "● Checking the database\n  ⎿ Listed the tables" {
-		t.Fatalf("got %q", first)
-	}
-	if code != "● Checking the code\n  ⎿ Read auth.service.ts" {
-		t.Fatalf("got %q", code)
-	}
-	if broken != "  ⎿ Looked at the files in src/x" {
-		t.Fatalf("got %q", broken)
+func TestSpinnerHeadlinesNameTheKindOfWork(t *testing.T) {
+	for tool, want := range map[string]string{
+		"query": "Checking the database", "read_file": "Checking the code",
+		"verify": "Checking the answer", "plan": "",
+	} {
+		if got := headlineFor(tool); got != want {
+			t.Errorf("headlineFor(%q) = %q, want %q", tool, got, want)
+		}
 	}
 }
 

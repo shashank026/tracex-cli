@@ -31,8 +31,14 @@ Usage:
   tracex usage             How much of your plan's limits is left
   tracex version           Print the version
 
+In a git repository that is not linked to TraceX, tracex -c is a coding agent:
+it reads, searches and edits the code and runs commands there, asking before
+every edit and command.
+
 Chat options:
   -p, --project <id>       Ask this project instead of the linked one
+  --code                   Work on this repository's code, even if it is linked
+  --ask                    Ask about the TraceX project, even in an unlinked repository
 
 Environment:
   TRACEX_API_URL           TraceX API (default https://api.tracexpro.com)

@@ -41,21 +41,41 @@ type session struct {
 	project  api.Project
 	threadID string
 	build    Build
+	// Set in a local repository not linked to TraceX: work as a coding agent
+	code *coding
+	rl   *readline.Instance
 }
 
 // chat answers one question (`tracex -c "..."`, or piped input) or opens an
 // interactive session like the dashboard's Conversations.
 func chat(ctx context.Context, build Build, args []string) error {
 	projectFlag, args := flag(args, "-p", "--project")
+	forceCode, args := has(args, "--code")
+	forceAsk, args := has(args, "--ask")
 	client, creds, err := signedIn(build)
 	if err != nil {
 		return err
 	}
-	project, err := chatProject(ctx, client, creds, projectFlag)
-	if err != nil {
-		return err
+	s := &session{client: client, creds: creds, build: build}
+
+	// A repository that is not linked to TraceX: work on its code locally
+	cwd, _ := os.Getwd()
+	linked, _, _ := config.FindProject(cwd)
+	if !forceAsk && projectFlag == "" && (linked == nil || forceCode) {
+		if repo := codingRepo(cwd); repo != nil {
+			s.code = newCoding(client, repo, s.confirm)
+			s.project = api.Project{Name: s.code.name}
+		} else if forceCode {
+			return errors.New("coding mode works inside a git repository")
+		}
 	}
-	s := &session{client: client, creds: creds, project: *project, build: build}
+	if s.code == nil {
+		project, err := chatProject(ctx, client, creds, projectFlag)
+		if err != nil {
+			return err
+		}
+		s.project = *project
+	}
 
 	question := strings.TrimSpace(strings.Join(args, " "))
 	if question == "" && !ui.Interactive() {
@@ -63,9 +83,22 @@ func chat(ctx context.Context, build Build, args []string) error {
 		question = strings.TrimSpace(string(piped))
 	}
 	if question != "" {
+		if s.code != nil {
+			return s.code.ask(ctx, question)
+		}
 		return s.ask(ctx, question)
 	}
 	return s.repl(ctx)
+}
+
+// confirm asks a yes/no question at the prompt (readline owns the terminal).
+func (s *session) confirm(question string) (string, error) {
+	if s.rl == nil {
+		return ui.Ask(question, ""), nil
+	}
+	s.rl.SetPrompt(question)
+	defer s.rl.SetPrompt(ui.Brand("❯ "))
+	return s.rl.Readline()
 }
 
 // chatProject: --project, else the repository's .tracex.json, else the saved
@@ -132,6 +165,7 @@ func (s *session) repl(ctx context.Context) error {
 		return err
 	}
 	defer rl.Close()
+	s.rl = rl
 
 	fmt.Println(ui.Dim("  ? for shortcuts"))
 	for {
@@ -173,7 +207,11 @@ func (s *session) repl(ctx context.Context) error {
 			}
 			continue
 		}
-		if err := s.ask(ctx, question); err != nil {
+		ask := s.ask
+		if s.code != nil {
+			ask = s.code.ask
+		}
+		if err := ask(ctx, question); err != nil {
 			if errors.Is(err, api.ErrUnauthorized) {
 				return err
 			}
@@ -191,6 +229,9 @@ func (s *session) command(ctx context.Context, line string) bool {
 		return true
 	case "/new", "/clear":
 		s.threadID = ""
+		if s.code != nil {
+			s.code.reset()
+		}
 		if name == "/clear" {
 			fmt.Print("\x1b[H\x1b[2J")
 			s.welcome(ctx, s.build)
@@ -268,7 +309,6 @@ func (s *session) ask(parent context.Context, question string) error {
 	var answer strings.Builder
 	var final *api.Message
 	steps := 0
-	trace := &traceLog{seen: map[string]bool{}}
 
 	err := s.client.Ask(ctx, s.project.ID, s.threadID, question, func(event api.Event) error {
 		switch event.Name {
@@ -296,9 +336,7 @@ func (s *session) ask(parent context.Context, question string) error {
 			}
 			if step.Phase == "step_finished" {
 				steps++
-				if line := trace.add(step); !plain && line != "" {
-					spinner.Println(line)
-				}
+
 			}
 		case "delta":
 			var d struct {
@@ -386,42 +424,6 @@ func headlineFor(tool string) string {
 	default:
 		return "Checking the database"
 	}
-}
-
-// traceLog prints a finished step compactly: a headline when the kind of work
-// changes, then one line per distinct action. The model's reasoning and
-// repeated actions are left out.
-type traceLog struct {
-	headline string
-	seen     map[string]bool
-}
-
-func (t *traceLog) add(step api.Step) string {
-	headline := headlineFor(step.Tool)
-	if headline == "" {
-		return ""
-	}
-	label := firstNonEmpty(step.Done, step.Status, stepNames[step.Tool], step.Tool)
-	verb, object, _ := strings.Cut(label, " ")
-	if step.Tool == "read_file" {
-		object = filepath.Base(object)
-	}
-	failed := step.OK != nil && !*step.OK
-	key := headline + "|" + label
-	var lines []string
-	if headline != t.headline {
-		t.headline = headline
-		lines = append(lines, ui.Brand("●")+" "+ui.Bold(headline))
-	}
-	if !t.seen[key] || failed {
-		t.seen[key] = true
-		mark := ui.Dim("⎿")
-		if failed {
-			mark = ui.Yellow("⎿")
-		}
-		lines = append(lines, "  "+mark+" "+verb+" "+ui.Dim(oneLine(object, ui.Width()-len(verb)-8)))
-	}
-	return strings.Join(lines, "\n")
 }
 
 func formatSources(sources []map[string]any) string {

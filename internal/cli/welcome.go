@@ -109,23 +109,36 @@ func (s *session) welcome(ctx context.Context, build Build) {
 	)
 
 	right := []string{ui.Brand(ui.Bold("Tips for getting started"))}
-	if linked, _, _ := config.FindProject(mustCwd()); linked == nil {
-		right = append(right, cut("Run tracex init in a repository to link it to its project", rightW))
+	if s.code != nil {
+		// Coding mode: a local repository not linked to TraceX
+		right = append(right,
+			cut("Coding mode: TraceX reads, edits and runs commands here", rightW),
+			ui.Dim(cut("It asks before every edit and command", rightW)),
+			ui.Dim(cut(`Try "explain this codebase" or "fix the failing test"`, rightW)),
+			ui.Dim(strings.Repeat("─", rightW)),
+			ui.Brand(ui.Bold("Your production data")),
+			cut("Run tracex init to link this repository to TraceX,", rightW),
+			cut("then ask about your databases, logs and errors too", rightW),
+		)
 	} else {
-		right = append(right, cut("Ask about your data, code and recent changes", rightW))
-	}
-	right = append(right,
-		ui.Dim(cut(`Try "why did signups drop yesterday?"`, rightW)),
-		ui.Dim(strings.Repeat("─", rightW)),
-		ui.Brand(ui.Bold("Recent activity")),
-	)
-	threads, _ := s.client.Threads(ctx, s.project.ID)
-	if len(threads) == 0 {
-		right = append(right, ui.Dim("No recent activity"))
-	}
-	for _, t := range threads[:min(len(threads), 4)] {
-		when := ago(t.UpdatedAt)
-		right = append(right, cut(t.Title, rightW-len(when)-1)+" "+ui.Dim(when))
+		if linked, _, _ := config.FindProject(mustCwd()); linked == nil {
+			right = append(right, cut("Run tracex init in a repository to link it to its project", rightW))
+		} else {
+			right = append(right, cut("Ask about your data, code and recent changes", rightW))
+		}
+		right = append(right,
+			ui.Dim(cut(`Try "why did signups drop yesterday?"`, rightW)),
+			ui.Dim(strings.Repeat("─", rightW)),
+			ui.Brand(ui.Bold("Recent activity")),
+		)
+		threads, _ := s.client.Threads(ctx, s.project.ID)
+		if len(threads) == 0 {
+			right = append(right, ui.Dim("No recent activity"))
+		}
+		for _, t := range threads[:min(len(threads), 4)] {
+			when := ago(t.UpdatedAt)
+			right = append(right, cut(t.Title, rightW-len(when)-1)+" "+ui.Dim(when))
+		}
 	}
 
 	rows := max(len(left), len(right))

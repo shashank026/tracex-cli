@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"time"
@@ -252,4 +253,46 @@ type Thread struct {
 func (c *Client) Threads(ctx context.Context, projectID string) ([]Thread, error) {
 	var out []Thread
 	return out, c.JSON(ctx, "GET", "/v1/chats"+Query("project_id", projectID), nil, &out)
+}
+
+// --- coding mode -----------------------------------------------------------------------
+
+// ToolCall is a tool the coding agent wants run.
+type ToolCall struct {
+	ID    string         `json:"id"`
+	Name  string         `json:"name"`
+	Input map[string]any `json:"input"`
+}
+
+// ToolResult is what running a tool returned.
+type ToolResult struct {
+	CallID  string `json:"call_id"`
+	Content string `json:"content"`
+	IsError bool   `json:"is_error"`
+}
+
+// CodeTurn is one message of a coding conversation (user, assistant or tool).
+type CodeTurn struct {
+	Role        string            `json:"role"`
+	Text        string            `json:"text,omitempty"`
+	ToolCalls   []ToolCall        `json:"tool_calls,omitempty"`
+	Results     []ToolResult      `json:"results,omitempty"`
+	Raw         []json.RawMessage `json:"raw,omitempty"`
+	RawProvider string            `json:"raw_provider,omitempty"`
+}
+
+// CodeReply is the model's next move: text, tools to run, or both.
+type CodeReply struct {
+	Text        string            `json:"text"`
+	ToolCalls   []ToolCall        `json:"tool_calls"`
+	Raw         []json.RawMessage `json:"raw"`
+	RawProvider string            `json:"raw_provider"`
+	StopReason  string            `json:"stop_reason"`
+}
+
+// CodeTurn asks the coding agent for its next step in a local repository.
+func (c *Client) CodeTurn(ctx context.Context, turns []CodeTurn, context string) (*CodeReply, error) {
+	var out CodeReply
+	body := map[string]any{"turns": turns, "context": context}
+	return &out, c.LongJSON(ctx, "POST", "/v1/cli/code/turn", body, &out)
 }
