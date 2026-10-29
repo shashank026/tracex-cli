@@ -304,8 +304,8 @@ func (s *session) ask(parent context.Context, question string) error {
 			}
 			if step.Phase == "step_finished" {
 				steps++
-				if !plain {
-					spinner.Println(formatStep(step))
+				if line := formatStep(step); !plain && line != "" {
+					spinner.Println(line)
 				}
 			}
 		case "delta":
@@ -370,20 +370,35 @@ func (s *session) absoluteLinks(text string) string {
 	return strings.ReplaceAll(text, "](/", "]("+base+"/")
 }
 
+// formatStep prints a finished step like a coding agent's trace: what it said
+// it would do as a plain line, then one quiet line for the action itself.
 func formatStep(step api.Step) string {
-	name := stepNames[step.Tool]
-	if name == "" {
-		name = step.Tool
+	var lines []string
+	switch step.Tool {
+	case "plan", "think":
+		if text := firstNonEmpty(step.Thought, step.Status); text != "" {
+			return wrap(text)
+		}
+		return ""
 	}
-	dot := ui.Green("⏺")
+	if step.Thought != "" {
+		lines = append(lines, wrap(step.Thought))
+	}
+	label := firstNonEmpty(step.Done, step.Status, stepNames[step.Tool], step.Tool)
+	verb, object, _ := strings.Cut(label, " ")
+	if step.Tool == "read_file" {
+		object = filepath.Base(object)
+	}
+	dot := ui.Dim("•")
 	if step.OK != nil && !*step.OK {
-		dot = ui.Red("⏺")
+		dot = ui.Yellow("•")
 	}
-	head := fmt.Sprintf("%s %s %s", dot, ui.Bold(name), ui.Dim(oneLine(step.Status, ui.Width()-len(name)-6)))
-	if strings.TrimSpace(step.Result) == "" {
-		return head
-	}
-	return head + "\n  " + ui.Dim("⎿ "+oneLine(step.Result, ui.Width()-6))
+	lines = append(lines, "  "+dot+" "+verb+" "+ui.Dim(oneLine(object, ui.Width()-len(verb)-6)))
+	return strings.Join(lines, "\n")
+}
+
+func wrap(text string) string {
+	return oneLine(text, 4*ui.Width())
 }
 
 func formatSources(sources []map[string]any) string {

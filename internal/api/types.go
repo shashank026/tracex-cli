@@ -149,6 +149,7 @@ type Step struct {
 	CallID  string `json:"call_id"`
 	Tool    string `json:"tool"`
 	Status  string `json:"status"`
+	Done    string `json:"done"` // the status once finished ("Read auth.service.ts")
 	Thought string `json:"thought"`
 	Result  string `json:"result"`
 	OK      *bool  `json:"ok"`

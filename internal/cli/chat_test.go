@@ -65,9 +65,13 @@ func TestOneQuestionPrintsTheFinalAnswer(t *testing.T) {
 
 func TestStepsAreLabelledLikeTheDashboard(t *testing.T) {
 	ok := false
-	line := formatStep(api.Step{Tool: "search_code", Status: "Searching the code for charge", Result: "3 matches", OK: &ok})
-	if !strings.Contains(line, "Search") || !strings.Contains(line, "⎿ 3 matches") {
+	line := formatStep(api.Step{Tool: "read_file", Status: "Reading src/auth/auth.service.ts", Done: "Read src/auth/auth.service.ts", OK: &ok})
+	if !strings.Contains(line, "Read auth.service.ts") {
 		t.Fatalf("got %q", line)
+	}
+	said := formatStep(api.Step{Tool: "plan", Thought: "I'll trace the signup flow."})
+	if said != "I'll trace the signup flow." {
+		t.Fatalf("got %q", said)
 	}
 }
 
