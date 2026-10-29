@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-// DefaultAPIURL serves both the dashboard and its API (/v1).
-const DefaultAPIURL = "https://app.tracexpro.com"
+// DefaultAPIURL is TraceX's API (/v1); the dashboard is app.tracexpro.com.
+const DefaultAPIURL = "https://api.tracexpro.com"
 
 // ProjectFile links a repository to a TraceX project. It holds no secrets and
 // can be committed so the whole team asks the same project.
@@ -21,6 +21,7 @@ const ProjectFile = ".tracex.json"
 // Credentials is one signed-in session of the CLI.
 type Credentials struct {
 	APIURL       string    `json:"api_url"`
+	AppURL       string    `json:"app_url,omitempty"` // the dashboard, for links
 	AccessToken  string    `json:"access_token"`
 	ExpiresAt    time.Time `json:"expires_at"`
 	Email        string    `json:"email"`

@@ -34,7 +34,7 @@ Chat options:
   -p, --project <id>       Ask this project instead of the linked one
 
 Environment:
-  TRACEX_API_URL           TraceX server (default https://app.tracexpro.com)
+  TRACEX_API_URL           TraceX API (default https://api.tracexpro.com)
   NO_COLOR                 Plain output without colors
 `
 

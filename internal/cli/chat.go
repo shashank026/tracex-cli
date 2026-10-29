@@ -220,7 +220,7 @@ func (s *session) command(ctx context.Context, line string) bool {
 		s.project, s.threadID = *project, ""
 		ui.Info("Asking %s now.", ui.Bold(project.Name))
 	case "/open":
-		url := strings.TrimRight(s.client.BaseURL, "/") + "/conversations"
+		url := firstNonEmpty(s.creds.AppURL, "https://app.tracexpro.com") + "/conversations"
 		if s.threadID != "" {
 			url += "/" + s.threadID
 		}
@@ -364,10 +364,13 @@ func (s *session) ask(parent context.Context, question string) error {
 	return nil
 }
 
-// absoluteLinks makes the answer's dashboard links (files, investigations) clickable.
+// absoluteLinks makes the answer's links clickable: files (/v1/...) on the API,
+// pages such as /investigations/... on the dashboard.
 func (s *session) absoluteLinks(text string) string {
-	base := strings.TrimRight(s.client.BaseURL, "/")
-	return strings.ReplaceAll(text, "](/", "]("+base+"/")
+	api := strings.TrimRight(s.client.BaseURL, "/")
+	app := firstNonEmpty(s.creds.AppURL, "https://app.tracexpro.com")
+	text = strings.ReplaceAll(text, "](/v1/", "]("+api+"/v1/")
+	return strings.ReplaceAll(text, "](/", "]("+app+"/")
 }
 
 // formatStep prints a finished step like a coding agent's trace: what it said

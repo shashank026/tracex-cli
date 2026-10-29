@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
@@ -64,6 +65,7 @@ func login(ctx context.Context, build Build, args []string) error {
 		spinner.Stop()
 		creds := &config.Credentials{
 			APIURL:       base,
+			AppURL:       origin(device.VerificationURL),
 			AccessToken:  session.AccessToken,
 			ExpiresAt:    time.Now().Add(time.Duration(session.ExpiresIn) * time.Second),
 			Email:        session.User.Email,
@@ -127,4 +129,13 @@ func openBrowser(url string) error {
 		cmd = exec.Command("xdg-open", url)
 	}
 	return cmd.Start()
+}
+
+// origin is "https://app.tracexpro.com" from "https://app.tracexpro.com/cli?code=…".
+func origin(link string) string {
+	u, err := url.Parse(link)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host
 }

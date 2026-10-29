@@ -2,6 +2,7 @@
 # Install the TraceX CLI:
 #
 #   curl -fsSL https://app.tracexpro.com/install | sh
+#   curl -fsSL https://app.tracexpro.com/install | sh -s -- v0.1.1
 #
 # Options (environment variables):
 #   TRACEX_VERSION       a release such as v0.2.0 (default: the latest)
@@ -10,7 +11,8 @@
 set -eu
 
 RELEASES="${TRACEX_RELEASES:-https://github.com/shashank026/tracex-cli/releases}"
-VERSION="${TRACEX_VERSION:-latest}"
+VERSION="${1:-${TRACEX_VERSION:-latest}}"
+case "$VERSION" in latest | v*) ;; *) VERSION="v$VERSION" ;; esac
 INSTALL_DIR="${TRACEX_INSTALL_DIR:-$HOME/.local/bin}"
 
 say() { printf '%s\n' "$*"; }
@@ -65,12 +67,29 @@ mv "$tmp/tracex" "$INSTALL_DIR/tracex"
 chmod 755 "$INSTALL_DIR/tracex"
 
 say "Installed $("$INSTALL_DIR/tracex" version) to $INSTALL_DIR/tracex"
+# Put the install folder on PATH for new terminals (once)
 case ":$PATH:" in
   *":$INSTALL_DIR:"*) ;;
   *)
+    line="export PATH=\"$INSTALL_DIR:\$PATH\""
+    case "$(basename "${SHELL:-}")" in
+      zsh) rc="${ZDOTDIR:-$HOME}/.zshrc" ;;
+      bash) if [ "$os" = darwin ]; then rc="$HOME/.bash_profile"; else rc="$HOME/.bashrc"; fi ;;
+      fish)
+        rc="${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish"
+        line="fish_add_path $INSTALL_DIR"
+        ;;
+      *) rc="" ;;
+    esac
     say ""
-    say "$INSTALL_DIR is not on your PATH. Add it, e.g.:"
-    say "  echo 'export PATH=\"$INSTALL_DIR:\$PATH\"' >> ~/.zshrc && source ~/.zshrc"
+    if [ -n "$rc" ]; then
+      mkdir -p "$(dirname "$rc")"
+      grep -qsF "$line" "$rc" || printf '\n%s\n' "$line" >>"$rc"
+      say "Added $INSTALL_DIR to PATH in $rc. Open a new terminal, or run:"
+      say "  $line"
+    else
+      say "Add $INSTALL_DIR to your PATH:  $line"
+    fi
     ;;
 esac
 say ""

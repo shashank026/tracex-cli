@@ -89,6 +89,11 @@ func (c *Client) do(req *http.Request) (*http.Response, error) {
 	if resp.StatusCode == http.StatusUnauthorized && c.Token != "" {
 		return nil, ErrUnauthorized
 	}
+	if resp.StatusCode == http.StatusNotFound && strings.Contains(resp.Header.Get("Content-Type"), "text/html") {
+		// A web page, not the API: the server address is wrong
+		return nil, &Error{Status: 404, Detail: fmt.Sprintf(
+			"%s is not the TraceX API (set TRACEX_API_URL, e.g. https://api.tracexpro.com)", c.BaseURL)}
+	}
 	return nil, &Error{Status: resp.StatusCode, Detail: detail(resp)}
 }
 

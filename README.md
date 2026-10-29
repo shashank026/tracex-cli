@@ -40,7 +40,7 @@ In a chat session:
 - **`.tracex.json`** in the repository: the linked project, repository and branch. It holds no secrets, so commit it and your whole team asks the same project.
 - **`~/.tracex/history`**: your previous questions, for the up arrow.
 
-`TRACEX_API_URL` points the CLI at another server, for example `http://127.0.0.1:8000` for a local backend. `NO_COLOR` turns colors off.
+The CLI talks to `https://api.tracexpro.com`. `TRACEX_API_URL` points the CLI at another server, for example `http://127.0.0.1:8000` for a local backend. `NO_COLOR` turns colors off.
 
 ## Development
 
