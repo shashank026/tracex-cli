@@ -28,6 +28,7 @@ Usage:
   tracex logout            Sign this computer out
   tracex init              Link this git repository to a TraceX project
   tracex status            Who is signed in and which project this folder uses
+  tracex usage             How much of your plan's limits is left
   tracex version           Print the version
 
 Chat options:
@@ -59,6 +60,8 @@ func Run(args []string, build Build) int {
 		err = initRepo(ctx, build, rest)
 	case "status", "whoami":
 		err = status(build)
+	case "usage":
+		err = showUsage(ctx, build)
 	case "-c", "--chat", "chat", "ask":
 		err = chat(ctx, build, rest)
 	default:
@@ -148,4 +151,12 @@ func has(args []string, names ...string) (bool, []string) {
 		}
 	}
 	return found, rest
+}
+
+func showUsage(ctx context.Context, build Build) error {
+	client, creds, err := signedIn(build)
+	if err != nil {
+		return err
+	}
+	return (&session{client: client, creds: creds, build: build}).printUsage(ctx)
 }

@@ -190,3 +190,66 @@ func (c *Client) Stop(ctx context.Context, threadID, messageID string) error {
 	path := fmt.Sprintf("/v1/chats/%s/messages/%s/stop", url.PathEscape(threadID), url.PathEscape(messageID))
 	return c.JSON(ctx, "POST", path, nil, nil)
 }
+
+// --- usage ---------------------------------------------------------------------------
+
+// Meter is usage against a limit (Included nil: no limit).
+type Meter struct {
+	Used     float64  `json:"used"`
+	Included *float64 `json:"included"`
+}
+
+// Left is the percent of the limit still available, or -1 without a limit.
+func (m *Meter) Left() int {
+	if m == nil || m.Included == nil || *m.Included <= 0 {
+		return -1
+	}
+	left := 100 - int(m.Used / *m.Included * 100 + 0.5)
+	return max(left, 0)
+}
+
+// Billing is the organization's plan and how much of it is used.
+type Billing struct {
+	CurrentPlan string `json:"current_plan"`
+	Plans       []struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"plans"`
+	Usage struct {
+		Investigations Meter  `json:"investigations"`
+		ChatMessages   *Meter `json:"chat_messages"`
+		AI             *struct {
+			TokensWindow Meter      `json:"tokens_window"`
+			WindowHours  float64    `json:"window_hours"`
+			TokensFreeAt *time.Time `json:"tokens_free_at"`
+		} `json:"ai"`
+	} `json:"usage"`
+}
+
+// PlanName is the current plan's display name.
+func (b *Billing) PlanName() string {
+	for _, p := range b.Plans {
+		if p.ID == b.CurrentPlan {
+			return p.Name
+		}
+	}
+	return b.CurrentPlan
+}
+
+func (c *Client) Billing(ctx context.Context) (*Billing, error) {
+	var out Billing
+	return &out, c.JSON(ctx, "GET", "/v1/organization/billing", nil, &out)
+}
+
+// Thread is one conversation in the project's list.
+type Thread struct {
+	ID        string    `json:"id"`
+	Title     string    `json:"title"`
+	Source    string    `json:"source"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (c *Client) Threads(ctx context.Context, projectID string) ([]Thread, error) {
+	var out []Thread
+	return out, c.JSON(ctx, "GET", "/v1/chats"+Query("project_id", projectID), nil, &out)
+}

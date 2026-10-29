@@ -40,6 +40,7 @@ type session struct {
 	creds    *config.Credentials
 	project  api.Project
 	threadID string
+	build    Build
 }
 
 // chat answers one question (`tracex -c "..."`, or piped input) or opens an
@@ -54,7 +55,7 @@ func chat(ctx context.Context, build Build, args []string) error {
 	if err != nil {
 		return err
 	}
-	s := &session{client: client, creds: creds, project: *project}
+	s := &session{client: client, creds: creds, project: *project, build: build}
 
 	question := strings.TrimSpace(strings.Join(args, " "))
 	if question == "" && !ui.Interactive() {
@@ -113,33 +114,15 @@ func chatProject(ctx context.Context, client *api.Client, creds *config.Credenti
 	return picked, nil
 }
 
-func (s *session) banner() {
-	width := min(ui.Width()-2, 64)
-	line := strings.Repeat("─", width-2)
-	row := func(text, styled string) {
-		pad := width - 4 - len([]rune(text))
-		fmt.Printf("%s %s%s %s\n", ui.Brand("│"), styled, strings.Repeat(" ", max(pad, 0)), ui.Brand("│"))
-	}
-	fmt.Println(ui.Brand("╭" + line + "╮"))
-	row("✻ TraceX", ui.Brand("✻")+" "+ui.Bold("TraceX"))
-	row("", "")
-	row("  Ask about your data, code and recent changes.", ui.Dim("  Ask about your data, code and recent changes."))
-	where := fmt.Sprintf("  %s · %s", s.creds.Organization, s.project.Name)
-	row(where, ui.Dim(where))
-	fmt.Println(ui.Brand("╰" + line + "╯"))
-	fmt.Println(ui.Dim("  /help for commands · ctrl+c stops an answer · ctrl+d exits"))
-	fmt.Println()
-}
-
 func (s *session) repl(ctx context.Context) error {
-	s.banner()
+	s.welcome(ctx, s.build)
 	historyFile := ""
 	if dir, err := config.Dir(); err == nil {
 		_ = os.MkdirAll(dir, 0o700)
 		historyFile = filepath.Join(dir, "history")
 	}
 	rl, err := readline.NewEx(&readline.Config{
-		Prompt:            ui.Brand("> "),
+		Prompt:            ui.Brand("❯ "),
 		HistoryFile:       historyFile,
 		HistorySearchFold: true,
 		InterruptPrompt:   "^C",
@@ -150,7 +133,10 @@ func (s *session) repl(ctx context.Context) error {
 	}
 	defer rl.Close()
 
+	fmt.Println(ui.Dim("  ? for shortcuts"))
 	for {
+		// The input sits on its own line under a rule, like a coding agent's
+		fmt.Println(ui.Dim(strings.Repeat("─", min(ui.Width(), 110))))
 		line, err := rl.Readline()
 		if errors.Is(err, readline.ErrInterrupt) {
 			if line == "" {
@@ -168,7 +154,7 @@ func (s *session) repl(ctx context.Context) error {
 		for strings.HasSuffix(line, "\\") {
 			rl.SetPrompt(ui.Dim("… "))
 			more, err := rl.Readline()
-			rl.SetPrompt(ui.Brand("> "))
+			rl.SetPrompt(ui.Brand("❯ "))
 			if err != nil {
 				break
 			}
@@ -177,6 +163,9 @@ func (s *session) repl(ctx context.Context) error {
 		question := strings.TrimSpace(line)
 		if question == "" {
 			continue
+		}
+		if question == "?" {
+			question = "/help"
 		}
 		if strings.HasPrefix(question, "/") {
 			if s.command(ctx, question) {
@@ -204,7 +193,7 @@ func (s *session) command(ctx context.Context, line string) bool {
 		s.threadID = ""
 		if name == "/clear" {
 			fmt.Print("\x1b[H\x1b[2J")
-			s.banner()
+			s.welcome(ctx, s.build)
 		}
 		ui.Info("New conversation.")
 	case "/project":
@@ -219,6 +208,10 @@ func (s *session) command(ctx context.Context, line string) bool {
 		}
 		s.project, s.threadID = *project, ""
 		ui.Info("Asking %s now.", ui.Bold(project.Name))
+	case "/usage":
+		if err := s.printUsage(ctx); err != nil {
+			ui.Fail("%s", err)
+		}
 	case "/open":
 		url := firstNonEmpty(s.creds.AppURL, "https://app.tracexpro.com") + "/conversations"
 		if s.threadID != "" {
@@ -231,6 +224,7 @@ func (s *session) command(ctx context.Context, line string) bool {
 		fmt.Println(`  /new        Start a new conversation
   /clear      Clear the screen and start a new conversation
   /project    Switch project (/project <name> to pick one)
+  /usage      How much of your plan's limits is left
   /open       Open this conversation in the dashboard
   /exit       Quit (or ctrl+d)
 
