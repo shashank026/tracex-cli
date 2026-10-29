@@ -268,6 +268,7 @@ func (s *session) ask(parent context.Context, question string) error {
 	var answer strings.Builder
 	var final *api.Message
 	steps := 0
+	trace := &traceLog{seen: map[string]bool{}}
 
 	err := s.client.Ask(ctx, s.project.ID, s.threadID, question, func(event api.Event) error {
 		switch event.Name {
@@ -281,24 +282,21 @@ func (s *session) ask(parent context.Context, question string) error {
 		case "thinking":
 			spinner.Set(thinkingWords[steps%len(thinkingWords)] + "…")
 		case "reasoning":
-			var r struct {
-				Text string `json:"text"`
-			}
-			if json.Unmarshal(event.Data, &r) == nil && strings.TrimSpace(r.Text) != "" {
-				spinner.Set(ui.Dim(oneLine(r.Text, ui.Width()-30)))
-			}
+			// The model's own reasoning is not shown: only what TraceX is doing
 		case "step":
 			var step api.Step
 			if json.Unmarshal(event.Data, &step) != nil {
 				return nil
 			}
 			if step.Phase == "step_started" {
-				spinner.Set(oneLine(step.Status, ui.Width()-30) + "…")
+				if headline := headlineFor(step.Tool); headline != "" {
+					spinner.Set(headline + "…")
+				}
 				return nil
 			}
 			if step.Phase == "step_finished" {
 				steps++
-				if line := formatStep(step); !plain && line != "" {
+				if line := trace.add(step); !plain && line != "" {
 					spinner.Println(line)
 				}
 			}
@@ -367,35 +365,63 @@ func (s *session) absoluteLinks(text string) string {
 	return strings.ReplaceAll(text, "](/", "]("+app+"/")
 }
 
-// formatStep prints a finished step like a coding agent's trace: what it said
-// it would do as a plain line, then one quiet line for the action itself.
-func formatStep(step api.Step) string {
-	var lines []string
-	switch step.Tool {
+// What TraceX is doing, as a headline over its actions ("Checking the database")
+func headlineFor(tool string) string {
+	switch tool {
 	case "plan", "think":
-		if text := firstNonEmpty(step.Thought, step.Status); text != "" {
-			return wrap(text)
-		}
 		return ""
+	case "search_code", "read_file", "list_files", "recent_commits", "change_history",
+		"read_pull_request", "deploys":
+		return "Checking the code"
+	case "search_logs", "search_errors", "error_details":
+		return "Checking logs and errors"
+	case "similar_investigations":
+		return "Checking past investigations"
+	case "export_data", "create_document":
+		return "Making the file"
+	case "verify":
+		return "Checking the answer"
+	case "list_sources":
+		return "Looking at the connected sources"
+	default:
+		return "Checking the database"
 	}
-	if step.Thought != "" {
-		lines = append(lines, wrap(step.Thought))
+}
+
+// traceLog prints a finished step compactly: a headline when the kind of work
+// changes, then one line per distinct action. The model's reasoning and
+// repeated actions are left out.
+type traceLog struct {
+	headline string
+	seen     map[string]bool
+}
+
+func (t *traceLog) add(step api.Step) string {
+	headline := headlineFor(step.Tool)
+	if headline == "" {
+		return ""
 	}
 	label := firstNonEmpty(step.Done, step.Status, stepNames[step.Tool], step.Tool)
 	verb, object, _ := strings.Cut(label, " ")
 	if step.Tool == "read_file" {
 		object = filepath.Base(object)
 	}
-	dot := ui.Dim("•")
-	if step.OK != nil && !*step.OK {
-		dot = ui.Yellow("•")
+	failed := step.OK != nil && !*step.OK
+	key := headline + "|" + label
+	var lines []string
+	if headline != t.headline {
+		t.headline = headline
+		lines = append(lines, ui.Brand("●")+" "+ui.Bold(headline))
 	}
-	lines = append(lines, "  "+dot+" "+verb+" "+ui.Dim(oneLine(object, ui.Width()-len(verb)-6)))
+	if !t.seen[key] || failed {
+		t.seen[key] = true
+		mark := ui.Dim("⎿")
+		if failed {
+			mark = ui.Yellow("⎿")
+		}
+		lines = append(lines, "  "+mark+" "+verb+" "+ui.Dim(oneLine(object, ui.Width()-len(verb)-8)))
+	}
 	return strings.Join(lines, "\n")
-}
-
-func wrap(text string) string {
-	return oneLine(text, 4*ui.Width())
 }
 
 func formatSources(sources []map[string]any) string {

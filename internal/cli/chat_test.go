@@ -63,15 +63,25 @@ func TestOneQuestionPrintsTheFinalAnswer(t *testing.T) {
 	}
 }
 
-func TestStepsAreLabelledLikeTheDashboard(t *testing.T) {
-	ok := false
-	line := formatStep(api.Step{Tool: "read_file", Status: "Reading src/auth/auth.service.ts", Done: "Read src/auth/auth.service.ts", OK: &ok})
-	if !strings.Contains(line, "Read auth.service.ts") {
-		t.Fatalf("got %q", line)
+func TestTheTraceShowsHeadlinesAndActionsNotReasoning(t *testing.T) {
+	ok, failed := true, false
+	trace := &traceLog{seen: map[string]bool{}}
+	plan := trace.add(api.Step{Tool: "plan", Thought: "We need to... Let's list the tables."})
+	first := trace.add(api.Step{Tool: "list_tables", Done: "Listed the tables", Thought: "We need to find signups. Let's", OK: &ok})
+	again := trace.add(api.Step{Tool: "list_tables", Done: "Listed the tables", OK: &ok})
+	code := trace.add(api.Step{Tool: "read_file", Done: "Read src/auth/auth.service.ts", OK: &ok})
+	broken := trace.add(api.Step{Tool: "list_files", Done: "Looked at the files in src/x", OK: &failed})
+	if plan != "" || again != "" {
+		t.Fatalf("plan %q and a repeat %q should print nothing", plan, again)
 	}
-	said := formatStep(api.Step{Tool: "plan", Thought: "I'll trace the signup flow."})
-	if said != "I'll trace the signup flow." {
-		t.Fatalf("got %q", said)
+	if first != "● Checking the database\n  ⎿ Listed the tables" {
+		t.Fatalf("got %q", first)
+	}
+	if code != "● Checking the code\n  ⎿ Read auth.service.ts" {
+		t.Fatalf("got %q", code)
+	}
+	if broken != "  ⎿ Looked at the files in src/x" {
+		t.Fatalf("got %q", broken)
 	}
 }
 
