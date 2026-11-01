@@ -1,8 +1,8 @@
 #!/bin/sh
 # Install the TraceX CLI:
 #
-#   curl -fsSL https://app.tracexpro.com/install | sh
-#   curl -fsSL https://app.tracexpro.com/install | sh -s -- v0.1.1
+#   curl -fsSL https://tracexpro.com/install | sh
+#   curl -fsSL https://tracexpro.com/install | sh -s -- v0.1.1
 #
 # Options (environment variables):
 #   TRACEX_VERSION       a release such as v0.2.0 (default: the latest)

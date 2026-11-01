@@ -3,7 +3,7 @@
 Ask TraceX about your data, code and recent changes from the terminal.
 
 ```sh
-curl -fsSL https://app.tracexpro.com/install | sh
+curl -fsSL https://tracexpro.com/install | sh
 ```
 
 The installer downloads the release for your system, checks its SHA-256
