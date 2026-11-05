@@ -18,6 +18,45 @@ INSTALL_DIR="${TRACEX_INSTALL_DIR:-$HOME/.local/bin}"
 say() { printf '%s\n' "$*"; }
 fail() { printf 'tracex install: %s\n' "$*" >&2; exit 1; }
 
+# Progress goes to stderr: with `curl … | sh` that is still the terminal. Colours only on a
+# terminal, and never when NO_COLOR is set.
+if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+  green="$(printf '\033[32m')" red="$(printf '\033[31m')" dim="$(printf '\033[2m')" off="$(printf '\033[0m')"
+else
+  green="" red="" dim="" off=""
+fi
+done_line() { printf '%s✓%s %s\n' "$green" "$off" "$*" >&2; }
+
+# step "Downloading…" "Downloaded" command args: runs the command with a spinner on a terminal,
+# then leaves a ✓ (or ✗) line behind
+step() {
+  doing=$1 did=$2
+  shift 2
+  if [ ! -t 2 ]; then
+    "$@" || return 1
+    done_line "$did"
+    return 0
+  fi
+  # The command's own errors wait in a file until the spinner line is cleared
+  "$@" 2>"$tmp/step-errors" &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    for frame in ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏; do
+      kill -0 "$pid" 2>/dev/null || break
+      printf '\r\033[2K%s%s%s %s' "$dim" "$frame" "$off" "$doing" >&2
+      sleep 0.08
+    done
+  done
+  if wait "$pid"; then
+    printf '\r\033[2K' >&2
+    done_line "$did"
+  else
+    printf '\r\033[2K%s✗%s %s\n' "$red" "$off" "$doing" >&2
+    cat "$tmp/step-errors" >&2
+    return 1
+  fi
+}
+
 case "$(uname -s)" in
   Darwin) os=darwin ;;
   Linux) os=linux ;;
@@ -47,9 +86,9 @@ archive="tracex_${os}_${arch}.tar.gz"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-say "Downloading TraceX CLI ($VERSION, $os/$arch)…"
-fetch "$base/$archive" "$tmp/$archive" || fail "could not download $base/$archive"
-fetch "$base/checksums.txt" "$tmp/checksums.txt" || fail "could not download the checksums"
+download() { fetch "$base/$archive" "$tmp/$archive" && fetch "$base/checksums.txt" "$tmp/checksums.txt"; }
+step "Downloading TraceX CLI ($VERSION, $os/$arch)…" "Downloaded TraceX CLI ($VERSION, $os/$arch)" download ||
+  fail "could not download $base/$archive"
 
 # Never install a binary whose checksum does not match the release
 expected="$(grep " $archive\$" "$tmp/checksums.txt" | cut -d' ' -f1)"
@@ -60,13 +99,14 @@ else
   actual="$(shasum -a 256 "$tmp/$archive" | cut -d' ' -f1)"
 fi
 [ "$expected" = "$actual" ] || fail "checksum mismatch for $archive"
+done_line "Checksum verified"
 
 tar -xzf "$tmp/$archive" -C "$tmp" tracex
 mkdir -p "$INSTALL_DIR"
 mv "$tmp/tracex" "$INSTALL_DIR/tracex"
 chmod 755 "$INSTALL_DIR/tracex"
 
-say "Installed $("$INSTALL_DIR/tracex" version) to $INSTALL_DIR/tracex"
+done_line "Installed $("$INSTALL_DIR/tracex" version) to $INSTALL_DIR/tracex"
 # Put the install folder on PATH for new terminals (once)
 case ":$PATH:" in
   *":$INSTALL_DIR:"*) ;;
