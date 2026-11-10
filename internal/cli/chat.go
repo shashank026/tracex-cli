@@ -41,9 +41,11 @@ type session struct {
 	project  api.Project
 	threadID string
 	build    Build
-	// Set in a local repository not linked to TraceX: work as a coding agent
+	// Set in a git repository: work as a coding agent on the local code
 	code *coding
-	rl   *readline.Instance
+	// The conversation the coding agent's ask_tracex questions go to
+	agentThread string
+	rl          *readline.Instance
 }
 
 // chat answers one question (`tracex -c "..."`, or piped input) or opens an
@@ -58,13 +60,22 @@ func chat(ctx context.Context, build Build, args []string) error {
 	}
 	s := &session{client: client, creds: creds, build: build}
 
-	// A repository that is not linked to TraceX: work on its code locally
+	// In a git repository, work on its local code. If the repository is linked
+	// to a TraceX project, the agent can also ask that project about production
+	// (its databases, logs, errors, deploys); questions about this code are
+	// answered from this checkout, not from a connected copy of some repository.
+	// --ask (or --project) asks the TraceX project directly instead.
 	cwd, _ := os.Getwd()
 	linked, _, _ := config.FindProject(cwd)
-	if !forceAsk && projectFlag == "" && (linked == nil || forceCode) {
+	if !forceAsk && projectFlag == "" {
 		if repo := codingRepo(cwd); repo != nil {
 			s.code = newCoding(client, repo, s.confirm)
 			s.project = api.Project{Name: s.code.name}
+			if linked != nil {
+				s.code.project = linked.ProjectName
+				s.code.askTraceX = s.askForAgent(linked.ProjectID)
+				s.project = api.Project{ID: linked.ProjectID, Name: linked.ProjectName}
+			}
 		} else if forceCode {
 			return errors.New("coding mode works inside a git repository")
 		}
@@ -228,7 +239,7 @@ func (s *session) command(ctx context.Context, line string) bool {
 	case "/exit", "/quit", "/q":
 		return true
 	case "/new", "/clear":
-		s.threadID = ""
+		s.threadID, s.agentThread = "", ""
 		if s.code != nil {
 			s.code.reset()
 		}
@@ -392,6 +403,68 @@ func (s *session) ask(parent context.Context, question string) error {
 		fmt.Println(formatSources(final.Sources))
 	}
 	return nil
+}
+
+// askForAgent asks the TraceX project a question for the coding agent and
+// returns the answer as text (with its sources), without printing it: the
+// agent uses it in its own answer. The questions share one conversation.
+func (s *session) askForAgent(projectID string) func(context.Context, string, func(string)) (string, error) {
+	return func(ctx context.Context, question string, status func(string)) (string, error) {
+		var answer strings.Builder
+		var final *api.Message
+		err := s.client.Ask(ctx, projectID, s.agentThread, question, func(event api.Event) error {
+			switch event.Name {
+			case "message":
+				var opening api.Opening
+				if json.Unmarshal(event.Data, &opening) == nil {
+					s.agentThread = opening.Thread.ID
+				}
+			case "step":
+				var step api.Step
+				if json.Unmarshal(event.Data, &step) == nil && step.Phase == "step_started" {
+					if headline := headlineFor(step.Tool); headline != "" {
+						status(headline)
+					}
+				}
+			case "delta":
+				var d struct {
+					Text string `json:"text"`
+				}
+				if json.Unmarshal(event.Data, &d) == nil {
+					answer.WriteString(d.Text)
+				}
+			case "reset":
+				answer.Reset()
+			case "done", "error", "snapshot":
+				var end struct {
+					Detail  string      `json:"detail"`
+					Message api.Message `json:"message"`
+				}
+				if json.Unmarshal(event.Data, &end) == nil {
+					final = &end.Message
+					if event.Name == "error" {
+						final.Status, final.Error = "error", firstNonEmpty(end.Detail, end.Message.Error)
+					}
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return "", err
+		}
+		if final != nil && final.Status == "error" {
+			return "", errors.New(firstNonEmpty(final.Error, "TraceX could not answer"))
+		}
+		text := answer.String()
+		if final != nil && final.Content != "" {
+			text = final.Content
+		}
+		text = s.absoluteLinks(text)
+		if final != nil && len(final.Sources) > 0 {
+			text += "\n\n" + strings.TrimSpace(formatSources(final.Sources))
+		}
+		return text, nil
+	}
 }
 
 // absoluteLinks makes the answer's links clickable: files (/v1/...) on the API,

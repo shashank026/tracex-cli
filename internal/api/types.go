@@ -291,8 +291,13 @@ type CodeReply struct {
 }
 
 // CodeTurn asks the coding agent for its next step in a local repository.
-func (c *Client) CodeTurn(ctx context.Context, turns []CodeTurn, context string) (*CodeReply, error) {
+// CodeTurn asks for the coding agent's next step. project is the linked TraceX
+// project's name, or "": with one, the agent may also ask TraceX (ask_tracex).
+func (c *Client) CodeTurn(ctx context.Context, turns []CodeTurn, context, project string) (*CodeReply, error) {
 	var out CodeReply
 	body := map[string]any{"turns": turns, "context": context}
+	if project != "" {
+		body["project"] = project
+	}
 	return &out, c.LongJSON(ctx, "POST", "/v1/cli/code/turn", body, &out)
 }

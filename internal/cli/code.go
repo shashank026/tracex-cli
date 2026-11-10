@@ -24,9 +24,12 @@ const (
 	keepFullTurns = 24
 )
 
-// coding is `tracex -c` in a repository that is not linked to TraceX: a coding
-// agent like Claude Code. The model runs through TraceX's API; its tools run
-// here, and every edit and command waits for the person's yes.
+// coding is `tracex -c` in a git repository: a coding agent like Claude Code.
+// The model runs through TraceX's API; its tools run here, and every edit and
+// command waits for the person's yes. In a repository linked to a TraceX
+// project (.tracex.json) it can also ask TraceX about what only TraceX sees:
+// production data, logs, errors, deploys and other repositories (ask_tracex).
+// Questions about this code are answered from this checkout.
 type coding struct {
 	client  *api.Client
 	repo    coder.Repo
@@ -37,6 +40,9 @@ type coding struct {
 	confirm func(question string) (string, error)
 	// Approvals need someone at a terminal; without one, edits and commands are refused
 	interactive bool
+	// The linked TraceX project, and how to ask it; empty in an unlinked repository
+	project   string
+	askTraceX func(ctx context.Context, question string, status func(string)) (string, error)
 }
 
 func newCoding(client *api.Client, repo *gitrepo.Repo, confirm func(string) (string, error)) *coding {
@@ -90,6 +96,14 @@ func (c *coding) context() string {
 
 func (c *coding) reset() { c.turns = nil }
 
+// projectForTools is the linked project's name when ask_tracex can be offered.
+func (c *coding) projectForTools() string {
+	if c.askTraceX == nil {
+		return ""
+	}
+	return c.project
+}
+
 // ask works on one request until the model answers without tools.
 func (c *coding) ask(parent context.Context, request string) error {
 	ctx, cancel := context.WithCancel(parent)
@@ -111,7 +125,7 @@ func (c *coding) ask(parent context.Context, request string) error {
 	defer func() { spinner.Stop() }()
 
 	for step := 0; step < maxCodeSteps; step++ {
-		reply, err := c.client.CodeTurn(ctx, c.sendable(), where)
+		reply, err := c.client.CodeTurn(ctx, c.sendable(), where, c.projectForTools())
 		if ctx.Err() != nil {
 			spinner.Stop()
 			fmt.Println(ui.Dim("  ⎿ Stopped."))
@@ -133,7 +147,8 @@ func (c *coding) ask(parent context.Context, request string) error {
 		var results []api.ToolResult
 		for _, call := range reply.ToolCalls {
 			// Edits and commands are shown for approval: no spinner over the question
-			asks := call.Name == "edit_file" || call.Name == "run_command"
+			// Edits, commands and questions to TraceX print their own lines
+			asks := call.Name == "edit_file" || call.Name == "run_command" || call.Name == "ask_tracex"
 			if asks {
 				spinner.Stop()
 			} else {
@@ -186,6 +201,8 @@ func codeHeadline(call api.ToolCall) string {
 		return "Editing " + filepath.Base(str(call.Input, "path"))
 	case "run_command":
 		return "Running a command"
+	case "ask_tracex":
+		return "Asking TraceX about production"
 	}
 	return "Working"
 }
@@ -216,6 +233,21 @@ func (c *coding) run(ctx context.Context, call api.ToolCall) (string, bool) {
 			return "Created " + edit.Path, false
 		}
 		return "Edited " + edit.Path, false
+	case "ask_tracex":
+		question := strings.TrimSpace(str(in, "question"))
+		if question == "" || c.askTraceX == nil {
+			return "ask_tracex needs a question, in a repository linked to TraceX", true
+		}
+		fmt.Printf("%s %s %s\n", ui.Brand("●"), ui.Bold("Ask TraceX"), ui.Dim(oneLine(question, 90)))
+		asking := ui.StartSpinner("Asking TraceX…")
+		answer, err := c.askTraceX(ctx, question, func(headline string) { asking.Set(headline + "…") })
+		asking.Stop()
+		if err != nil {
+			fmt.Println("  " + ui.Dim("⎿ "+err.Error()))
+			return "TraceX could not answer: " + err.Error(), true
+		}
+		fmt.Println("  " + ui.Dim("⎿ Answered from "+c.project+"'s connected sources"))
+		return answer, false
 	case "run_command":
 		command := strings.TrimSpace(str(in, "command"))
 		if command == "" {

@@ -17,7 +17,7 @@ On Windows, download `tracex_windows_amd64.zip` from the releases page.
 | --- | --- |
 | `tracex login` | Signs in through your browser. TraceX shows a code; you approve it in the dashboard, with your usual SSO or two-factor sign-in. The CLI never sees your password. |
 | `tracex init` | Run inside a git repository. Picks the TraceX project, connects the repository through the TraceX GitHub App if it isn't connected yet, and writes `.tracex.json`. |
-| `tracex -c` | Opens a chat session, like Conversations in the dashboard. |
+| `tracex -c` | Opens a session. In a git repository it works on the local code (see Coding mode); elsewhere it is like Conversations in the dashboard. |
 | `tracex -c "question"` | Answers one question and exits. Piped input works too: `git diff \| tracex -c`. |
 | `tracex status` | Shows who is signed in, the server, and the project this folder uses. |
 | `tracex logout` | Ends the CLI's session on the server and removes it from this computer. |
@@ -36,12 +36,15 @@ In a chat session:
 
 ## Coding mode
 
-In a git repository that isn't linked to TraceX (no `.tracex.json`), `tracex -c` works like a coding agent: it lists, searches and reads the code, edits files and runs commands (tests, builds, git) to do what you ask.
+In a git repository, `tracex -c` works like a coding agent: it lists, searches and reads the code, edits files and runs commands (tests, builds, git) to do what you ask. Questions about the code ("summarize this project", "where is signup handled?") are answered from the files in this checkout.
 
 - Every edit is shown as a diff and every command before it runs; answer `y` (yes), `a` (always, for this session) or `n` (no). Without a terminal, edits and commands are refused.
 - Files outside the repository can't be read or written, symlinks included.
 - The model runs through TraceX's API, so no AI keys are needed on your machine and usage counts against your plan. Nothing of the conversation is stored by TraceX.
-- `tracex -c --code` works on the code even in a linked repository; `tracex -c --ask` asks TraceX about your project instead.
+
+**Linked repositories.** After `tracex init`, the same agent can also ask TraceX about what only TraceX sees: the project's databases, logs, errors, deploys and other connected repositories. Ask "why did signups drop yesterday?" and it asks TraceX; ask "how does signup work?" and it reads the local code. You see each question it sends to TraceX.
+
+- `tracex -c --ask` (or `--project <id>`) asks the TraceX project directly, like Conversations in the dashboard, without the local code.
 
 ## Where things are kept
 

@@ -110,16 +110,26 @@ func (s *session) welcome(ctx context.Context, build Build) {
 
 	right := []string{ui.Brand(ui.Bold("Tips for getting started"))}
 	if s.code != nil {
-		// Coding mode: a local repository not linked to TraceX
+		// Coding mode: TraceX works on the code in this folder
 		right = append(right,
-			cut("Coding mode: TraceX reads, edits and runs commands here", rightW),
+			cut("TraceX reads, edits and runs commands in this repository", rightW),
 			ui.Dim(cut("It asks before every edit and command", rightW)),
 			ui.Dim(cut(`Try "explain this codebase" or "fix the failing test"`, rightW)),
 			ui.Dim(strings.Repeat("─", rightW)),
 			ui.Brand(ui.Bold("Your production data")),
-			cut("Run tracex init to link this repository to TraceX,", rightW),
-			cut("then ask about your databases, logs and errors too", rightW),
 		)
+		if s.code.askTraceX != nil {
+			right = append(right,
+				cut("Linked to "+s.code.project+": ask about its databases,", rightW),
+				cut("logs and errors too, in the same conversation", rightW),
+				ui.Dim(cut(`Try "why did signups drop yesterday?"`, rightW)),
+			)
+		} else {
+			right = append(right,
+				cut("Run tracex init to link this repository to TraceX,", rightW),
+				cut("then ask about your databases, logs and errors too", rightW),
+			)
+		}
 	} else {
 		if linked, _, _ := config.FindProject(mustCwd()); linked == nil {
 			right = append(right, cut("Run tracex init in a repository to link it to its project", rightW))
