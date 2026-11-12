@@ -28,7 +28,7 @@ var stepNames = map[string]string{
 	"related_tables": "Links", "find_fields": "Fields", "export_data": "Export",
 	"create_document": "Document", "verify": "Check", "find_records": "Find",
 	"entity_timeline": "Timeline", "compare_periods": "Compare", "column_values": "Values",
-	"similar_investigations": "History", "change_history": "Changes", "deploys": "Deploys",
+	"similar_investigations": "History", "change_history": "Changes", "deploys": "Deploys", "suspect_changes": "Suspects",
 	"read_pull_request": "PullRequest", "search_logs": "Logs", "search_errors": "Errors",
 	"error_details": "StackTrace",
 }
@@ -484,6 +484,8 @@ func headlineFor(tool string) string {
 	case "search_code", "read_file", "list_files", "recent_commits", "change_history",
 		"read_pull_request", "deploys":
 		return "Checking the code"
+	case "suspect_changes":
+		return "Finding the change that caused it"
 	case "search_logs", "search_errors", "error_details":
 		return "Checking logs and errors"
 	case "similar_investigations":
